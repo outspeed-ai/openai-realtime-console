@@ -96,22 +96,22 @@ export default function App() {
       setDataChannel(dc);
 
       /****** WITHOUT WEBSOCKET start ******/
-      const url = `https://${BASE_URL.hostname}/v1/realtime?model=${MODEL}`;
-      const sdpResponse = await fetch(url, {
-        method: "POST",
-        body: offer.sdp,
-        headers: {
-          Authorization: `Bearer ${ephemeralKey}`,
-          "Content-Type": "application/sdp",
-        },
-      });
+      // const url = `https://${BASE_URL.hostname}/v1/realtime?model=${MODEL}`;
+      // const sdpResponse = await fetch(url, {
+      //   method: "POST",
+      //   body: offer.sdp,
+      //   headers: {
+      //     Authorization: `Bearer ${ephemeralKey}`,
+      //     "Content-Type": "application/sdp",
+      //   },
+      // });
 
-      const answer = {
-        type: "answer",
-        sdp: await sdpResponse.text(),
-      };
-      await pc.setRemoteDescription(answer);
-      return;
+      // const answer = {
+      //   type: "answer",
+      //   sdp: await sdpResponse.text(),
+      // };
+      // await pc.setRemoteDescription(answer);
+      // return;
       /****** WITHOUT WEBSOCKET end ******/
 
       // signalling SDPs and ICE candidates via WebSocket
