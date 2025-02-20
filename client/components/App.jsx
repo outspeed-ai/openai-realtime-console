@@ -19,8 +19,28 @@ export default function App() {
     const data = await tokenResponse.json();
     const EPHEMERAL_KEY = data.client_secret.value;
 
+    const configuration = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    };
+
     // Create a peer connection
-    const pc = new RTCPeerConnection();
+    const pc = new RTCPeerConnection(configuration);
+
+    // Create a promise that resolves when ICE gathering is complete
+    const gatherComplete = new Promise((resolve) => {
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete") {
+          resolve();
+        }
+      };
+    });
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log("New ICE candidate:", event.candidate.candidate);
+        console.log("-------------------------------------------");
+      }
+    };
 
     // Set up to play remote audio from the model
     audioElement.current = document.createElement("audio");
@@ -41,11 +61,14 @@ export default function App() {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
+    // wait for ICE gathering to complete before sending the offer to the server
+    await gatherComplete;
+
     // const baseUrl = "https://api.openai.com/v1/realtime";
     const baseUrl = "http://localhost:8000/v1/realtime";
     const sdpResponse = await fetch(`${baseUrl}?model=${MODEL}`, {
       method: "POST",
-      body: offer.sdp,
+      body: pc.localDescription.sdp,
       headers: {
         Authorization: `Bearer ${EPHEMERAL_KEY}`,
         "Content-Type": "application/sdp",
