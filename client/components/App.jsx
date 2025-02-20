@@ -65,6 +65,11 @@ export default function App() {
       `wss://${hostname}/ws?session_id=${EPHEMERAL_KEY}`,
     );
 
+    // Wait for websocket to connect
+    await new Promise((resolve) => {
+      ws.onopen = resolve;
+    });
+
     ws.onopen = () => {
       console.log("WebSocket connected");
       ws.send(JSON.stringify({ type: "ping" }));
@@ -114,11 +119,6 @@ export default function App() {
     await pc.setLocalDescription(offer);
 
     console.log("offer", pc.localDescription.sdp);
-
-    // Wait for websocket to connect
-    await new Promise((resolve) => {
-      ws.onopen = resolve;
-    });
 
     ws.send(
       JSON.stringify({
