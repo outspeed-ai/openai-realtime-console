@@ -4,6 +4,16 @@ import EventLog from "./EventLog";
 import SessionControls from "./SessionControls";
 import ToolPanel from "./ToolPanel";
 
+let BASE_URL;
+try {
+  BASE_URL = new URL(import.meta.env.VITE_BASE_URL);
+} catch (error) {
+  error.message = `Error parsing BASE_URL '${import.meta.env.VITE_BASE_URL}': ${
+    error.message
+  }`;
+  throw error;
+}
+
 const MODEL = "MiniCPM-o-2_6";
 
 export default function App() {
@@ -17,27 +27,16 @@ export default function App() {
     // Get an ephemeral key from the Fastify server
     const tokenResponse = await fetch("/token");
     const data = await tokenResponse.json();
-    const EPHEMERAL_KEY = data.client_secret.value;
+    const ephemeralKey = data.client_secret.value;
 
-    var ICE_STUN_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
     // Create a peer connection
     const pc = new RTCPeerConnection({
-      iceServers: ICE_STUN_SERVERS,
-    });
-
-    // Create a promise that resolves when ICE gathering is complete
-    const gatherComplete = new Promise((resolve) => {
-      pc.onicegatheringstatechange = () => {
-        if (pc.iceGatheringState === "complete") {
-          resolve();
-        }
-      };
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         console.log("New ICE candidate:", event.candidate.candidate);
-        // console.log(pc.localDescription.sdp);
         console.log("-------------------------------------------");
       }
     };
@@ -57,13 +56,11 @@ export default function App() {
     const dc = pc.createDataChannel("oai-events");
     setDataChannel(dc);
 
-    // await gatherComplete;
-
-    const hostname =
-      "xalpha8--outspeed-infra-fastapi-app-dev.modal.run/v1/realtime";
     const ws = new WebSocket(
-      `wss://${hostname}/ws?session_id=${EPHEMERAL_KEY}`,
+      `wss://${BASE_URL.hostname}/v1/realtime/ws?session_id=${ephemeralKey}`,
     );
+
+    console.log("DEBUG WebSocket URL:", ws.url);
 
     // Wait for websocket to connect
     await new Promise((resolve) => {
@@ -71,26 +68,30 @@ export default function App() {
     });
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
+      console.log("DEBUG WebSocket connected");
       ws.send(JSON.stringify({ type: "ping" }));
     };
 
-    ws.onerror = (error) => {
+    ws.onerror = (event) => {
       // just reload the page if there's an error -- poor man's error handling
-      console.error("WebSocket error:", error, "Reloading...");
-      window.location.reload();
+      console.error("WebSocket error:", event, "Reloading...");
+      const reload = confirm(
+        "WebSocket error! Details are available in the console. Reload the page?",
+      );
+      if (reload) {
+        window.location.reload();
+      }
     };
 
     ws.onmessage = async (message) => {
       const data = JSON.parse(message.data);
       if (data.type === "pong") {
         console.log("pong");
-        // Server is ready, enable upload and preset images
       } else if (data.type === "answer") {
-        console.log("answer", data);
+        console.log("DEBUG received answer", data);
         await pc.setRemoteDescription(new RTCSessionDescription(data));
       } else if (data.type === "candidate") {
-        console.log("candidate", data);
+        console.log("DEBUG received candidate", data);
         await pc.addIceCandidate(
           new RTCIceCandidate({
             candidate: data.candidate,
@@ -118,7 +119,7 @@ export default function App() {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    console.log("offer", pc.localDescription.sdp);
+    console.log("DEBUG offer", pc.localDescription.sdp);
 
     ws.send(
       JSON.stringify({
@@ -126,24 +127,6 @@ export default function App() {
         sdp: pc.localDescription.sdp,
       }),
     );
-    // const baseUrl = "https://api.openai.com/v1/realtime";
-    // // const baseUrl =
-    // //   "https://xalpha8--outspeed-infra-fastapi-app-dev.modal.run/v1/realtime";
-    // // const sdpResponse = await fetch(`${baseUrl}?model=${MODEL}`, {
-    // //   method: "POST",
-    // //   body: pc.localDescription.sdp,
-    // //   headers: {
-    // //     Authorization: `Bearer ${EPHEMERAL_KEY}`,
-    // //     "Content-Type": "application/sdp",
-    // //   },
-    // // });
-
-    // // const answer = {
-    // //   type: "answer",
-    // //   sdp: await sdpResponse.text(),
-    // // };
-    // await pc.setRemoteDescription(answer);
-    // console.log("answer", answer);
 
     peerConnection.current = pc;
   }
